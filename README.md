@@ -1,1 +1,1 @@
-# ImageJ_format_tiff_reader
+# ImageJ_format_tiff
