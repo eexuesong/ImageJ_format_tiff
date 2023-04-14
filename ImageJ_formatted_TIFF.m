@@ -391,6 +391,7 @@ classdef ImageJ_formatted_TIFF
                     end
                     PixelNum = ImageWidth * ImageLength;    % PixelNumber is the whole x-y image.
                     offset_xy = 0;                          % fread starts at the origin (left-right corner) of the x-y image.
+                    offset_z = fix(ImageWidth * ImageLength * BitsPerSample / 8) * (DownZ - 1); % Always move to the origin (left-right corner) of x-y images
                 elseif crop_direction == 'y'
                     y_start = range(1);
                     if range(2) == Inf
@@ -399,21 +400,22 @@ classdef ImageJ_formatted_TIFF
                         y_end = range(2);
                     end
                     PixelNum = (y_end - y_start + 1) * ImageWidth;  % PixelNumber is the crop region along y dimension.
-                    offset_xy = fix((y_start - 1) * ImageWidth * header.BitsPerSample / 8); % fread starts at one pixel on left edge.
+                    offset_xy = fix((y_start - 1) * ImageWidth * BitsPerSample / 8); % fread starts at one pixel on left edge.
+                    offset_xy1 = fix(PixelNum * BitsPerSample / 8);
+                    offset_z = fix(ImageWidth * ImageLength * BitsPerSample / 8) * DownZ - offset_xy1;
                 else
                     error("Invalid crop direction.");
                 end
                 
                 ByteCounts = fix(PixelNum * BitsPerSample / 8);
                 Stack = zeros([Depth * PixelNum, 1], dtype);
-                offset_z = fix(ImageWidth * ImageLength * BitsPerSample / 8) * (DownZ - 1); % Always move to the origin (left-right corner) of x-y images
+                
 
-                fseek(fileID, header.StripOffsets, 'bof');
+                fseek(fileID, header.StripOffsets + offset_xy, 'bof');
                 for i = 1:Depth
                     % Note: crop along x dimension is slow because we need
                     % to read the entire x-y image data within the loop
                     % each time before cropping.
-                    fseek(fileID, offset_xy, 'cof'); 
                     Stack((i - 1) * PixelNum + 1 : i * PixelNum) = typecast(fread(fileID, ByteCounts, 'uint8=>uint8'), dtype);            
                     fseek(fileID, offset_z, 'cof');                
                 end
@@ -766,7 +768,7 @@ classdef ImageJ_formatted_TIFF
                     index = find(contains(ImageDescription_split, 'unit'), 1, 'first');
                     unit = sscanf(ImageDescription_split(index), 'unit=%s');
                     switch unit
-                        case {'um', '\u00B5m'}
+                        case {'um', 'micron', '\u00B5m'}
                             header.unit = 'um';
                         otherwise
                             header.unit = unit;
