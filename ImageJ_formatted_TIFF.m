@@ -238,7 +238,12 @@ classdef ImageJ_formatted_TIFF
             end
 
             if Depth ~= (channels * slices * frames)
-                error("channels * slices * frames dose not match total image number.");
+                if (channels == 1) && (slices == 1) && (frames == 1)
+                    slices = Depth;
+                    header.slices = slices;
+                else
+                    error("channels * slices * frames dose not match total image number.");
+                end
             end
             % Reshape into final format
             Stack = reshape(Stack, [ImageLength, ImageWidth, channels, slices, frames]);
