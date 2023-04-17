@@ -535,7 +535,11 @@ classdef ImageJ_formatted_TIFF
             if hyperstack_flag > 1
                 image_description = image_description + sprintf("hyperstack=true\n");
             end
-            image_description = image_description + sprintf("mode=grayscale\n");
+            if channels > 1
+                image_description = image_description + sprintf("mode=composite\n");
+            else
+                image_description = image_description + sprintf("mode=grayscale\n");
+            end
             % "\u00B5" is Unicode Character 'MICRO SIGN' (U+00B5)
             % Character '\u' is not valid in Matlab, so we use '\\u00B5' or '\x00B5'
             image_description = image_description + sprintf("unit=\\u00B5m\n");
