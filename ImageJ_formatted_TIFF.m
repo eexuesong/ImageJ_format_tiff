@@ -884,7 +884,6 @@ classdef ImageJ_formatted_TIFF
                         if verbose
                             content = convertCharsToStrings(char(value));
                             fprintf("	%s:\n%s\n", tag_id, content);
-
                         end
                          
                     case 'SHORT'
