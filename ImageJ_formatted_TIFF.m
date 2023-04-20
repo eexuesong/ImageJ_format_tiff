@@ -111,39 +111,155 @@ classdef ImageJ_formatted_TIFF
             fwrite(fileID, Stack, 'uint8');
             fclose(fileID);
         end
-
-        function [Stack, Header] = ReadTifStack(Filename)
-            % First determine whether it is a ImageJ formatted TIFF file (New version)
-            image_info = imfinfo(Filename);
-            if size(image_info, 1) > 1
-%                 disp('Not a ImageJ formatted Tiff file.');
-                Depth = size(image_info, 1);
-                ImageJ_formatted_TIFF_flag = 0;
-            else
-                ImageJ_formatted_TIFF_flag = 1;
-            end
-
-            % Read and parse tiff header first
-            fileID = fopen(Filename, 'r');
-            header = ImageJ_formatted_TIFF.parse_tif(fileID, 0);
-            ImageWidth = double(header.ImageWidth);
-            ImageLength = double(header.ImageLength);
-            BitsPerSample = double(header.BitsPerSample);
-            Depth_estimated = floor(image_info(1).FileSize / (ImageWidth * ImageLength * BitsPerSample / 8));
-
-            % Calculate slices from header.ImageDescription (Old version)
-%             ImageDescription = convertStringsToChars(header.ImageDescription);
-%             k1 = strfind(ImageDescription, 'images=');
-%             ImageDescription_crop = ImageDescription(k1:end);
-%             k2 = strfind(ImageDescription_crop, newline);
-%             if ~isempty(k1) && ~isempty(k2)
-%                 Depth = str2double(ImageDescription(k1(1) + 7: k1(1) + k2(1) - 2));
+        
+        % Obsolete
+%         function [Stack, Header] = ReadTifStack(Filename)
+%             % First determine whether it is a ImageJ formatted TIFF file (New version)
+%             image_info = imfinfo(Filename);
+%             if size(image_info, 1) > 1
+% %                 disp('Not a ImageJ formatted Tiff file.');
+%                 Depth = size(image_info, 1);
+%                 ImageJ_formatted_TIFF_flag = 0;
 %             else
-%                 warning("Did not find 'images=' in ImageDescription. Try to calculate it from filesize.");
-%                 FileAttributes = dir(Filename);
-%                 Depth = floor(FileAttributes.bytes / (ImageWidth * ImageLength * (header.BitsPerSample / 8)));
+%                 ImageJ_formatted_TIFF_flag = 1;
 %             end
-            
+% 
+%             % Read and parse tiff header first
+%             fileID = fopen(Filename, 'r');
+%             header = ImageJ_formatted_TIFF.parse_tif(fileID, 0);
+%             ImageWidth = double(header.ImageWidth);
+%             ImageLength = double(header.ImageLength);
+%             BitsPerSample = double(header.BitsPerSample);
+%             Depth_estimated = floor(image_info(1).FileSize / (ImageWidth * ImageLength * BitsPerSample / 8));
+% 
+%             % Calculate slices from header.ImageDescription (Old version)
+% %             ImageDescription = convertStringsToChars(header.ImageDescription);
+% %             k1 = strfind(ImageDescription, 'images=');
+% %             ImageDescription_crop = ImageDescription(k1:end);
+% %             k2 = strfind(ImageDescription_crop, newline);
+% %             if ~isempty(k1) && ~isempty(k2)
+% %                 Depth = str2double(ImageDescription(k1(1) + 7: k1(1) + k2(1) - 2));
+% %             else
+% %                 warning("Did not find 'images=' in ImageDescription. Try to calculate it from filesize.");
+% %                 FileAttributes = dir(Filename);
+% %                 Depth = floor(FileAttributes.bytes / (ImageWidth * ImageLength * (header.BitsPerSample / 8)));
+% %             end
+%             
+%             % Calculate data_type from header.BitsPerSample
+%             data_type = [header.SampleFormat, header.BitsPerSample];
+%             if isequal(data_type, [1, 8])
+%                 dtype = 'uint8';
+%             elseif isequal(data_type, [1, 16])
+%                 dtype = 'uint16';
+%             elseif isequal(data_type, [1, 32])
+%                 dtype = 'uint32';
+%             elseif isequal(data_type, [1, 64])
+%                 dtype = 'uint64';
+%             elseif isequal(data_type, [2, 8])
+%                 dtype = 'int8';
+%             elseif isequal(data_type, [2, 16])
+%                 dtype = 'int16';
+%             elseif isequal(data_type, [2, 32])
+%                 dtype = 'int32';
+%             elseif isequal(data_type, [2, 64])
+%                 dtype = 'int64';
+%             elseif isequal(data_type, [3, 32])
+%                 dtype = 'single';
+%             elseif isequal(data_type, [3, 64])
+%                 dtype = 'double';
+%             else
+%                 error("ReadTifStack does not support SampleFormat:%d with BitsPerSample: %d", header.SampleFormat, header.BitsPerSample);
+%             end
+%             
+%             if ImageJ_formatted_TIFF_flag
+%                 % Old version
+% %                 % Initialize reading buffer and parameters
+% %                 PixelNum = ImageWidth * ImageLength;
+% %                 ByteCounts = fix(PixelNum * BitsPerSample / 8);
+% %                 Stack = zeros([1, Depth * PixelNum], dtype);
+% % 
+% %                 fseek(fileID, header.StripOffsets, 'bof');
+% %                 for i = 1:Depth
+% %                     Stack((i - 1) * PixelNum + 1 : i * PixelNum) = typecast(transpose(fread(fileID, ByteCounts, 'uint8=>uint8')), dtype);
+% %                 end
+% 
+%                 % New version
+%                 % Initialize reading buffer and parameters
+%                 if isempty(header.images)
+%                     Depth = Depth_estimated;
+%                 else
+%                     Depth = header.images;
+%                     % Double check
+%                     if Depth ~= Depth_estimated
+%                         warning("Image number calculated from filesize is inconsistent with 'images=' in ImageDescription.");
+%                     end
+%                 end
+% 
+%                 PixelNum = ImageWidth * ImageLength;
+%                 ByteCounts = fix(PixelNum * BitsPerSample / 8);                
+%                 fseek(fileID, header.StripOffsets, 'bof');
+%                 Stack = typecast(fread(fileID, Depth * ByteCounts, 'uint8=>uint8'), dtype);
+% 
+%                 [~, ~, system_endian] = computer;
+%                 if system_endian ~= header.endian
+%                     Stack = swapbytes(Stack);
+%                 end
+%             
+%                 % Old version
+% %                 Stack = reshape(Stack, [PixelNum, 1, Depth]);
+% 
+%                 Stack = reshape(Stack, [ImageWidth, ImageLength, Depth]);
+%                 Stack = permute(Stack, [2 1 3]);
+%             else
+%                 Stack = zeros([ImageLength, ImageWidth, Depth], dtype);
+%                 for i = 1:Depth
+%                     Stack(:, :, i) = imread(Filename, i);
+%                 end
+%             end
+% 
+%             fclose(fileID);
+% 
+%             % Further reshape Stack based on "channels", "slices" and "frames"
+%             if isempty(header.channels)
+%                 channels = 1;
+%             else
+%                 channels = header.channels;
+%             end
+% 
+%             if isempty(header.slices)
+%                 slices = 1;
+%             else
+%                 slices = header.slices;
+%             end
+% 
+%             if isempty(header.frames)
+%                 frames = 1;
+%             else
+%                 frames = header.frames;
+%             end
+% 
+%             if Depth ~= (channels * slices * frames)
+%                 if (channels == 1) && (slices == 1) && (frames == 1)
+%                     slices = Depth;
+%                     header.slices = slices;
+%                 else
+%                     error("channels * slices * frames dose not match total image number.");
+%                 end
+%             end
+%             % Reshape into final format
+%             Stack = reshape(Stack, [ImageLength, ImageWidth, channels, slices, frames]);
+%             % Remove unnecessary dimension(s)
+%             Stack = squeeze(Stack);            
+% 
+%             if nargout > 1
+%                 Header = header;
+%             end
+%         end
+        
+        function [Stack, Header] = ReadTifStack(Filename)
+            % Get tiff file header
+            header = ImageJ_formatted_TIFF.get_header(Filename);
+
             % Calculate data_type from header.BitsPerSample
             data_type = [header.SampleFormat, header.BitsPerSample];
             if isequal(data_type, [1, 8])
@@ -170,53 +286,31 @@ classdef ImageJ_formatted_TIFF
                 error("ReadTifStack does not support SampleFormat:%d with BitsPerSample: %d", header.SampleFormat, header.BitsPerSample);
             end
             
-            if ImageJ_formatted_TIFF_flag
-                % Old version
-%                 % Initialize reading buffer and parameters
-%                 PixelNum = ImageWidth * ImageLength;
-%                 ByteCounts = fix(PixelNum * BitsPerSample / 8);
-%                 Stack = zeros([1, Depth * PixelNum], dtype);
-% 
-%                 fseek(fileID, header.StripOffsets, 'bof');
-%                 for i = 1:Depth
-%                     Stack((i - 1) * PixelNum + 1 : i * PixelNum) = typecast(transpose(fread(fileID, ByteCounts, 'uint8=>uint8')), dtype);
-%                 end
-
-                % New version
-                % Initialize reading buffer and parameters
-                if isempty(header.images)
-                    Depth = Depth_estimated;
-                else
-                    Depth = header.images;
-                    % Double check
-                    if Depth ~= Depth_estimated
-                        warning("Image number calculated from filesize is inconsistent with 'images=' in ImageDescription.")
-                    end
+            % Determine whether it is a ImageJ formatted TIFF file (New version)
+            image_info = imfinfo(Filename);
+            if size(image_info, 1) > 1
+%                 disp('Not a ImageJ formatted Tiff file.');
+                Stack = zeros([header.ImageLength, header.ImageWidth, header.images], dtype);
+                for i = 1:header.images
+                    Stack(:, :, i) = imread(Filename, i);
                 end
-
-                PixelNum = ImageWidth * ImageLength;
-                ByteCounts = fix(PixelNum * BitsPerSample / 8);                
+            else              
+                % Initialize reading buffer and parameters
+                PixelNum = double(header.ImageWidth) * double(header.ImageLength);
+                ByteCounts = fix(PixelNum * double(header.BitsPerSample) / 8);
+                fileID = fopen(Filename, 'r');
                 fseek(fileID, header.StripOffsets, 'bof');
-                Stack = typecast(fread(fileID, Depth * ByteCounts, 'uint8=>uint8'), dtype);
+                Stack = typecast(fread(fileID, header.images * ByteCounts, 'uint8=>uint8'), dtype);
+                fclose(fileID);
 
                 [~, ~, system_endian] = computer;
                 if system_endian ~= header.endian
                     Stack = swapbytes(Stack);
                 end
-            
-                % Old version
-%                 Stack = reshape(Stack, [PixelNum, 1, Depth]);
 
-                Stack = reshape(Stack, [ImageWidth, ImageLength, Depth]);
+                Stack = reshape(Stack, [header.ImageWidth, header.ImageLength, header.images]);
                 Stack = permute(Stack, [2 1 3]);
-            else
-                Stack = zeros([ImageLength, ImageWidth, Depth], dtype);
-                for i = 1:Depth
-                    Stack(:, :, i) = imread(Filename, i);
-                end
             end
-
-            fclose(fileID);
 
             % Further reshape Stack based on "channels", "slices" and "frames"
             if isempty(header.channels)
@@ -237,16 +331,8 @@ classdef ImageJ_formatted_TIFF
                 frames = header.frames;
             end
 
-            if Depth ~= (channels * slices * frames)
-                if (channels == 1) && (slices == 1) && (frames == 1)
-                    slices = Depth;
-                    header.slices = slices;
-                else
-                    error("channels * slices * frames dose not match total image number.");
-                end
-            end
             % Reshape into final format
-            Stack = reshape(Stack, [ImageLength, ImageWidth, channels, slices, frames]);
+            Stack = reshape(Stack, [header.ImageLength, header.ImageWidth, channels, slices, frames]);
             % Remove unnecessary dimension(s)
             Stack = squeeze(Stack);            
 
@@ -254,22 +340,70 @@ classdef ImageJ_formatted_TIFF
                 Header = header;
             end
         end
-        
-        function [Stack, Header] = ReadTifStackOneSlice(Filename, ZSlice)
-            % First determine whether it is a ImageJ formatted TIFF file
-            image_info = imfinfo(Filename);
-            if size(image_info, 1) > 1
-                ImageJ_formatted_TIFF_flag = 0;
-            else
-                ImageJ_formatted_TIFF_flag = 1;
-            end
 
-            % Read and parse tiff header first
+        function header = get_header(Filename)
+            % First read and parse tiff header
             fileID = fopen(Filename, 'r');
             header = ImageJ_formatted_TIFF.parse_tif(fileID, 0);
             ImageWidth = double(header.ImageWidth);
             ImageLength = double(header.ImageLength);
             BitsPerSample = double(header.BitsPerSample);
+            fclose(fileID);
+
+            % Then determine whether it is a ImageJ formatted TIFF file
+            image_info = imfinfo(Filename);
+            images_estimated = floor(image_info(1).FileSize / (ImageWidth * ImageLength * BitsPerSample / 8));
+
+            if size(image_info, 1) > 1
+%                 disp('Not a ImageJ formatted Tiff file.');
+                if isempty(header.images)
+                    header.images = size(image_info, 1);
+                end
+                if header.images ~= size(image_info, 1)
+                    error("Image number get from imfinfo is inconsistent with 'images=' in ImageDescription.")
+                end                
+            else
+                if isempty(header.images)
+                    header.images = images_estimated;
+                end
+            end
+            
+            % Double check
+            if header.images ~= images_estimated
+                warning("Image number calculated from filesize is inconsistent with 'images=' in ImageDescription.");
+            end
+
+            % Check header.images == channels * slices * frames
+            if isempty(header.channels)
+                channels = 1;
+            else
+                channels = header.channels;
+            end
+
+            if isempty(header.slices)
+                slices = 1;
+            else
+                slices = header.slices;
+            end
+
+            if isempty(header.frames)
+                frames = 1;
+            else
+                frames = header.frames;
+            end
+
+            if header.images ~= (channels * slices * frames)
+                if (channels == 1) && (slices == 1) && (frames == 1)
+                    header.slices = header.images;
+                else
+                    error("channels * slices * frames dose not match total image number.");
+                end
+            end
+        end
+
+        function [Stack, Header] = ReadTifStackOneSlice(Filename, ZSlice)
+            % Get tiff file header
+            header = ImageJ_formatted_TIFF.get_header(Filename);
 
             % Calculate data_type from header.BitsPerSample
             data_type = [header.SampleFormat, header.BitsPerSample];
@@ -296,25 +430,29 @@ classdef ImageJ_formatted_TIFF
             else
                 error("ReadTifStackOneSlice does not support SampleFormat:%d with BitsPerSample: %d", header.SampleFormat, header.BitsPerSample);
             end
-            
-            if ImageJ_formatted_TIFF_flag
-                PixelNum = ImageWidth * ImageLength;
-                ByteCounts = fix(PixelNum * BitsPerSample / 8);                
+
+            % Determine whether it is a ImageJ formatted TIFF file (New version)
+            image_info = imfinfo(Filename);
+            if size(image_info, 1) > 1
+%                 disp('Not a ImageJ formatted Tiff file.');
+                Stack = imread(Filename, ZSlice);
+            else
+                % Initialize reading buffer and parameters
+                PixelNum = double(header.ImageWidth) * double(header.ImageLength);
+                ByteCounts = fix(PixelNum * double(header.BitsPerSample) / 8);
+                fileID = fopen(Filename, 'r');
                 fseek(fileID, header.StripOffsets + ByteCounts * (ZSlice - 1), 'bof');
                 Stack = typecast(fread(fileID, ByteCounts, 'uint8=>uint8'), dtype);
+                fclose(fileID);
 
                 [~, ~, system_endian] = computer;
                 if system_endian ~= header.endian
                     Stack = swapbytes(Stack);
                 end
 
-                Stack = reshape(Stack, [ImageWidth, ImageLength]);
+                Stack = reshape(Stack, [header.ImageWidth, header.ImageLength]);
                 Stack = permute(Stack, [2 1]);
-            else
-                Stack = imread(Filename, ZSlice);
             end
-
-            fclose(fileID);
 
             if nargout > 1
                 Header = header;
@@ -329,25 +467,11 @@ classdef ImageJ_formatted_TIFF
             % "DownXY": down-sampling factor along x dimension if crop
             % along y dimension and vice versa.
             % "DownZ": down-sampling factor along z axis
+            
 
-
-            % First determine whether it is a ImageJ formatted TIFF file
-            image_info = imfinfo(Filename);
-            if size(image_info, 1) > 1
-                Depth = size(image_info, 1);
-                ImageJ_formatted_TIFF_flag = 0;
-            else
-                ImageJ_formatted_TIFF_flag = 1;
-            end
-
-            % Read and parse tiff header first
-            fileID = fopen(Filename, 'r');
-            header = ImageJ_formatted_TIFF.parse_tif(fileID, 0);
-            ImageWidth = double(header.ImageWidth);
-            ImageLength = double(header.ImageLength);
-            BitsPerSample = double(header.BitsPerSample);
-            Depth_estimated = floor(image_info(1).FileSize / (ImageWidth * ImageLength * BitsPerSample / 8));
-
+            % Get tiff file header
+            header = ImageJ_formatted_TIFF.get_header(Filename);
+            
             % Calculate data_type from header.BitsPerSample
             data_type = [header.SampleFormat, header.BitsPerSample];
             if isequal(data_type, [1, 8])
@@ -373,85 +497,23 @@ classdef ImageJ_formatted_TIFF
             else
                 error("ReadTifStackPortion does not support SampleFormat:%d with BitsPerSample: %d", header.SampleFormat, header.BitsPerSample);
             end
-
-            if ImageJ_formatted_TIFF_flag
-                % Initialize reading buffer and parameters
-                if isempty(header.images)
-                    Depth = Depth_estimated;
-                else
-                    Depth = header.images;
-                    % Double check
-                    if Depth ~= Depth_estimated
-                        warning("Image number calculated from filesize is inconsistent with 'images=' in ImageDescription.")
-                    end
-                end
-                Depth = ceil(Depth / DownZ);
-                
+            
+            % Determine whether it is a ImageJ formatted TIFF file (New version)
+            image_info = imfinfo(Filename);
+            if size(image_info, 1) > 1
+%                 disp('Not a ImageJ formatted Tiff file.');
+                Depth = ceil(header.images / DownZ);
                 if crop_direction == 'x'
                     x_start = range(1);
                     if range(2) == Inf
-                        x_end = ImageWidth;
-                    else
-                        x_end = range(2);
-                    end
-                    PixelNum = ImageWidth * ImageLength;    % PixelNumber is the whole x-y image.
-                    offset_xy = 0;                          % fread starts at the origin (left-right corner) of the x-y image.
-                    offset_z = fix(ImageWidth * ImageLength * BitsPerSample / 8) * (DownZ - 1); % Always move to the origin (left-right corner) of x-y images
-                elseif crop_direction == 'y'
-                    y_start = range(1);
-                    if range(2) == Inf
-                        y_end = ImageLength;
-                    else
-                        y_end = range(2);
-                    end
-                    PixelNum = (y_end - y_start + 1) * ImageWidth;  % PixelNumber is the crop region along y dimension.
-                    offset_xy = fix((y_start - 1) * ImageWidth * BitsPerSample / 8); % fread starts at one pixel on left edge.
-                    offset_xy1 = fix(PixelNum * BitsPerSample / 8);
-                    offset_z = fix(ImageWidth * ImageLength * BitsPerSample / 8) * DownZ - offset_xy1;
-                else
-                    error("Invalid crop direction.");
-                end
-                
-                ByteCounts = fix(PixelNum * BitsPerSample / 8);
-                Stack = zeros([Depth * PixelNum, 1], dtype);
-                
-
-                fseek(fileID, header.StripOffsets + offset_xy, 'bof');
-                for i = 1:Depth
-                    % Note: crop along x dimension is slow because we need
-                    % to read the entire x-y image data within the loop
-                    % each time before cropping.
-                    Stack((i - 1) * PixelNum + 1 : i * PixelNum) = typecast(fread(fileID, ByteCounts, 'uint8=>uint8'), dtype);            
-                    fseek(fileID, offset_z, 'cof');                
-                end
-
-                [~, ~, system_endian] = computer;
-                if system_endian ~= header.endian
-                    Stack = swapbytes(Stack);
-                end
-
-                if crop_direction == 'x'
-                    Stack = reshape(Stack, [ImageWidth, ImageLength, Depth]);
-                    Stack = Stack(x_start:x_end, 1:DownXY:end, :);
-                elseif crop_direction == 'y'
-                    Stack = reshape(Stack,[ImageWidth, y_end - y_start + 1, Depth]);
-                    Stack = Stack(1:DownXY:end, :, :);
-                end
-                Stack = permute(Stack, [2 1 3]);
-
-            else
-                Depth = ceil(Depth / DownZ);
-                if crop_direction == 'x'
-                    x_start = range(1);
-                    if range(2) == Inf
-                        x_end = ImageWidth;
+                        x_end = header.ImageWidth;
                     else
                         x_end = range(2);
                     end
                 elseif crop_direction == 'y'
                     y_start = range(1);
                     if range(2) == Inf
-                        y_end = ImageLength;
+                        y_end = header.ImageLength;
                     else
                         y_end = range(2);
                     end
@@ -459,7 +521,7 @@ classdef ImageJ_formatted_TIFF
                     error("Invalid crop direction.");
                 end
 
-                Stack = zeros([ImageLength, ImageWidth, Depth], dtype);
+                Stack = zeros([header.ImageLength, header.ImageWidth, Depth], dtype);
                 for i = 1:Depth
                     Stack(:, :, i) = imread(Filename, (i - 1) * DownZ + 1);
                 end
@@ -469,9 +531,62 @@ classdef ImageJ_formatted_TIFF
                 elseif crop_direction == 'y'
                     Stack = Stack(y_start:y_end, 1:DownXY:end, :);
                 end
+            else
+                Depth = ceil(header.images / DownZ);
+                
+                if crop_direction == 'x'
+                    x_start = range(1);
+                    if range(2) == Inf
+                        x_end = header.ImageWidth;
+                    else
+                        x_end = range(2);
+                    end
+                    PixelNum = double(header.ImageWidth) * double(header.ImageLength);  % PixelNumber is the whole x-y image.
+                    offset_xy = 0;                                                      % fread starts at the origin (left-right corner) of the x-y image.
+                    offset_z = fix(PixelNum * double(header.BitsPerSample) / 8) * (DownZ - 1); % Always move to the origin (left-right corner) of x-y images
+                elseif crop_direction == 'y'
+                    y_start = range(1);
+                    if range(2) == Inf
+                        y_end = header.ImageLength;
+                    else
+                        y_end = range(2);
+                    end
+                    PixelNum = double(y_end - y_start + 1) * double(header.ImageWidth);     % PixelNumber is the crop region along y dimension.
+                    offset_xy = fix((y_start - 1) * double(header.ImageWidth) * double(header.BitsPerSample) / 8);  % fread starts at one pixel on left edge.
+                    offset_xy1 = fix(PixelNum * double(header.BitsPerSample) / 8);
+                    offset_z = fix(double(header.ImageWidth) * double(header.ImageLength) * double(header.BitsPerSample) / 8) * DownZ - offset_xy1;
+                else
+                    error("Invalid crop direction.");
+                end
+                
+                ByteCounts = fix(PixelNum * double(header.BitsPerSample) / 8);
+                Stack = zeros([Depth * PixelNum, 1], dtype);
+                
+                fileID = fopen(Filename, 'r');
+                fseek(fileID, header.StripOffsets + offset_xy, 'bof');
+                for i = 1:Depth
+                    % Note: crop along x dimension is slow because we need
+                    % to read the entire x-y image data within the loop
+                    % each time before cropping.
+                    Stack((i - 1) * PixelNum + 1 : i * PixelNum) = typecast(fread(fileID, ByteCounts, 'uint8=>uint8'), dtype);            
+                    fseek(fileID, offset_z, 'cof');                
+                end
+                fclose(fileID);
+
+                [~, ~, system_endian] = computer;
+                if system_endian ~= header.endian
+                    Stack = swapbytes(Stack);
+                end
+
+                if crop_direction == 'x'
+                    Stack = reshape(Stack, [header.ImageWidth, header.ImageLength, Depth]);
+                    Stack = Stack(x_start:x_end, 1:DownXY:end, :);
+                elseif crop_direction == 'y'
+                    Stack = reshape(Stack, [header.ImageWidth, y_end - y_start + 1, Depth]);
+                    Stack = Stack(1:DownXY:end, :, :);
+                end
+                Stack = permute(Stack, [2 1 3]);
             end
-            
-            fclose(fileID);
 
             if nargout > 1
                 Header = header;
