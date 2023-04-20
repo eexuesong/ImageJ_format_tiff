@@ -564,8 +564,8 @@ classdef ImageJ_formatted_TIFF
 %             resolution_numerator = 1000000;                             % Convert mm into nm. Although we use ifd.ResolutionUnit = 3 (Centimeter), somehow ImageJ read unit from Metadata instead of ifd.ResolutionUnit.
 %             resolution_denominator = uint32(1000000 * resolution);      % nm / pixel, e.g. 39 nm
             % New version: More consistent with imagej
-            resolution_numerator = round(1000000 / resolution);         % Convert nm into nm.
-            resolution_denominator = 1000000;                           % denominator is always 1
+            resolution_numerator = round(1000000 / resolution);         % Convert um into integer.
+            resolution_denominator = 1000000;                           % denominator is always 1000,000
 
             if swapbytes_flag == 0
                 image_resolution(1:4) = typecast(uint32(resolution_numerator), 'uint8');
@@ -712,9 +712,11 @@ classdef ImageJ_formatted_TIFF
                         end
                         if resolution_denominator == 1
                         % For some cases, tiff files do not follow unit in ImageDescription
-                            header.resolution =  round(single(10000) / single(resolution_numerator), 5);                    % Unit: um / pixel
-                        else                        
-                            header.resolution =  round(single(resolution_denominator) / single(resolution_numerator), 5);   % Unit: um / pixel
+                            header.resolution =  round(single(10000) / single(resolution_numerator), 5);    % Convert cm into um
+                            % Unit: um / pixel
+                        else
+                            header.resolution =  round(single(resolution_denominator) / single(resolution_numerator), 5);
+                            % Unit: um / pixel
                         end
                     end
                     
