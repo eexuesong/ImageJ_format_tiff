@@ -105,7 +105,10 @@ stack_in = permute(stack_in, [2 1 3 4 5]);
 tic
 ImageJ_formatted_TIFF.WriteTifStack(stack_in, '16_bit_5D_stack(czt).tif', 0.046, 0.2, 'czt');
 toc
-
+%% Get the header information about a 16-bit 5D tiff file without reading any image data
+tic
+header = ImageJ_formatted_TIFF.get_header('16_bit_5D_stack(czt).tif');
+toc
 
 
 
