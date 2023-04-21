@@ -812,9 +812,7 @@ classdef ImageJ_formatted_TIFF
                         end
                         header.ImageDescription = convertCharsToStrings(char(entries('ImageDescription')));
                         ImageDescription_flag = ImageDescription_flag + 1;
-                    end
-
-                    if tag_id == "XResolution"
+                    elseif tag_id == "XResolution"
                         % Old version
 %                         resolution_numerator = ImageJ_formatted_TIFF.bytes_to_int(header.XResolution(1:4), header.endian);
 %                         resolution_denominator = ImageJ_formatted_TIFF.bytes_to_int(header.XResolution(5:8), header.endian);
@@ -833,20 +831,23 @@ classdef ImageJ_formatted_TIFF
                             header.resolution =  round(single(resolution_denominator) / single(resolution_numerator), 5);
                             % Unit: um / pixel
                         end
-                    end
-                    
-                    if tag_id == "IJMetadata"
+                    elseif tag_id == "IJMetadata"
                         header.IJMetadata = {};
                         start_index = 1;
                         for IJMetadata_index = 1:size(header.IJMetadataByteCounts, 1)
                             ByteCounts = header.IJMetadataByteCounts(IJMetadata_index);
-                            header.IJMetadata{IJMetadata_index} = native2unicode(value(start_index:start_index + ByteCounts - 1), 'UTF-8');
-%                             header.IJMetadata{IJMetadata_index} = convertCharsToStrings(char(value(start_index:start_index + ByteCounts - 1)));
+                            content = typecast(value(start_index:start_index + ByteCounts - 1), 'uint16');
+                            if max(content, [], 'all') <= 255
+                                IJMetadata_str = native2unicode(content', 'UTF-8');
+                                IJMetadata_json = jsondecode(IJMetadata_str);
+                                header.IJMetadata{end + 1} = IJMetadata_json;
+                            end
                             start_index = start_index + ByteCounts;
                         end
-                    end
-
-                    if tag_id == "MicroManagerMetadata"
+                        if size(header.IJMetadata) == 1
+                            header.IJMetadata = header.IJMetadata{1};
+                        end
+                    elseif tag_id == "MicroManagerMetadata"
                         header.NumberCharsInMicroManagerMetadata = size(entries('MicroManagerMetadata'), 1);
                         % Old version
 %                         header.OffsetOfOMicroManagerMetadata = ImageJ_formatted_TIFF.bytes_to_int(entry(9:12), header.endian);
@@ -1000,13 +1001,13 @@ classdef ImageJ_formatted_TIFF
                             content = convertCharsToStrings(char(value));
                             fprintf("	%s:\n%s\n", tag_id, content);
                         end
-                         
+
                     case 'SHORT'
-                        value = typecast(value, 'uint16');                        
+                        value = typecast(value, 'uint16');
                         if system_endian ~= endian
                             value = swapbytes(value);
                         end
-                        
+
                         if verbose
                             if data_count == 1                            
                                 fprintf("	%s: %d\n", tag_id, value);
