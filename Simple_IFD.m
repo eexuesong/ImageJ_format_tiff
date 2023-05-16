@@ -290,6 +290,7 @@ classdef Simple_IFD
         NumberCharsInMicroManagerMetadata = uint32(0)
         OffsetOfOMicroManagerMetadata = uint32(0)
         MicroManagerMetadata
+        MicroManagerBigTiff = 0
 
         NextIFD = 0
         endian = "L"

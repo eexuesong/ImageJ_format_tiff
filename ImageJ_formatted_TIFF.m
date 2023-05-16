@@ -290,11 +290,11 @@ classdef ImageJ_formatted_TIFF
             image_info = imfinfo(Filename);
             if size(image_info, 1) > 1
 %                 disp('Not a ImageJ formatted Tiff file.');
-                Stack = zeros([header.ImageLength, header.ImageWidth, header.images], dtype);
-                for i = 1:header.images
+                Stack = zeros([header.ImageLength, header.ImageWidth, size(image_info, 1)], dtype);
+                for i = 1:size(image_info, 1)
                     Stack(:, :, i) = imread(Filename, i);
                 end
-            else              
+            else
                 % Initialize reading buffer and parameters
                 PixelNum = double(header.ImageWidth) * double(header.ImageLength);
                 ByteCounts = fix(PixelNum * double(header.BitsPerSample) / 8);
@@ -312,29 +312,31 @@ classdef ImageJ_formatted_TIFF
                 Stack = permute(Stack, [2 1 3]);
             end
 
-            % Further reshape Stack based on "channels", "slices" and "frames"
-            if isempty(header.channels)
-                channels = 1;
-            else
-                channels = header.channels;
-            end
+            if ~header.MicroManagerBigTiff
+                % Further reshape Stack based on "channels", "slices" and "frames"
+                if isempty(header.channels)
+                    channels = 1;
+                else
+                    channels = header.channels;
+                end
 
-            if isempty(header.slices)
-                slices = 1;
-            else
-                slices = header.slices;
-            end
+                if isempty(header.slices)
+                    slices = 1;
+                else
+                    slices = header.slices;
+                end
 
-            if isempty(header.frames)
-                frames = 1;
-            else
-                frames = header.frames;
-            end
+                if isempty(header.frames)
+                    frames = 1;
+                else
+                    frames = header.frames;
+                end
 
-            % Reshape into final format
-            Stack = reshape(Stack, [header.ImageLength, header.ImageWidth, channels, slices, frames]);
-            % Remove unnecessary dimension(s)
-            Stack = squeeze(Stack);
+                % Reshape into final format
+                Stack = reshape(Stack, [header.ImageLength, header.ImageWidth, channels, slices, frames]);
+                % Remove unnecessary dimension(s)
+                Stack = squeeze(Stack);
+            end
 
             if nargout > 1
                 Header = header;
@@ -360,9 +362,10 @@ classdef ImageJ_formatted_TIFF
                     header.images = size(image_info, 1);
                 end
                 if header.images ~= size(image_info, 1)
-                    header.images = size(image_info, 1);
-                    warning("Image number get from imfinfo is inconsistent with 'images=' in ImageDescription. It is part of a MicroManager tiff stack (>4GB).")
-                end                
+%                     header.images = size(image_info, 1);
+                    header.MicroManagerBigTiff = 1;
+                    warning("Image number get from imfinfo is inconsistent with 'images=' in ImageDescription. It is part of a MicroManager big tiff (>4GB).")
+                end
             else
                 if isempty(header.images)
                     header.images = images_estimated;
@@ -397,7 +400,7 @@ classdef ImageJ_formatted_TIFF
                 if (channels == 1) && (slices == 1) && (frames == 1)
                     header.slices = header.images;
                 else
-                    warning("channels * slices * frames dose not match total image number. It is part of a MicroManager tiff stack (>4GB).");
+                    error("channels * slices * frames dose not match total image number.")
                 end
             end
         end
