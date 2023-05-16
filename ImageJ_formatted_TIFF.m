@@ -334,7 +334,7 @@ classdef ImageJ_formatted_TIFF
             % Reshape into final format
             Stack = reshape(Stack, [header.ImageLength, header.ImageWidth, channels, slices, frames]);
             % Remove unnecessary dimension(s)
-            Stack = squeeze(Stack);            
+            Stack = squeeze(Stack);
 
             if nargout > 1
                 Header = header;
@@ -360,7 +360,8 @@ classdef ImageJ_formatted_TIFF
                     header.images = size(image_info, 1);
                 end
                 if header.images ~= size(image_info, 1)
-                    error("Image number get from imfinfo is inconsistent with 'images=' in ImageDescription.")
+                    header.images = size(image_info, 1);
+                    warning("Image number get from imfinfo is inconsistent with 'images=' in ImageDescription. It is part of a MicroManager tiff stack (>4GB).")
                 end                
             else
                 if isempty(header.images)
@@ -396,7 +397,7 @@ classdef ImageJ_formatted_TIFF
                 if (channels == 1) && (slices == 1) && (frames == 1)
                     header.slices = header.images;
                 else
-                    error("channels * slices * frames dose not match total image number.");
+                    warning("channels * slices * frames dose not match total image number. It is part of a MicroManager tiff stack (>4GB).");
                 end
             end
         end
@@ -856,7 +857,14 @@ classdef ImageJ_formatted_TIFF
                         if system_endian ~= header.endian
                             header.OffsetOfOMicroManagerMetadata = swapbytes(header.OffsetOfOMicroManagerMetadata);
                         end
-                        header.MicroManagerMetadata = convertCharsToStrings(char(entries('MicroManagerMetadata')));
+%                         header.MicroManagerMetadata = convertCharsToStrings(char(entries('MicroManagerMetadata')));
+                        
+                        content = char(entries('MicroManagerMetadata'))';
+                        % Trim the strange char(s) at the end of this char array 
+                        k = strfind(content, '}');
+                        content = content(1: k(end));
+                        header.MicroManagerMetadata = jsondecode(content);
+
                         if verbose
                             fprintf("\n");
                         end
