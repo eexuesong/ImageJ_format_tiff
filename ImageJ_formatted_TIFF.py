@@ -215,26 +215,34 @@ def ReadTifStack(filename):
     # Get tiff file header
     header = get_header(filename=filename)
 
+    """
+    Determine the numpy data_type from the TIF header.BitsPerSample and header.SampleFormat
+    """
+    dtype = {
+                1: 'uint',
+                2: 'int',
+                3: 'float',
+                4: 'undefined',
+            }[header.SampleFormat] + ascii(header.BitsPerSample)
+    try:
+        dtype = getattr(numpy, dtype)
+    except AttributeError:
+        raise UserWarning("ReadTifStack does not support data format: {0}".format(dtype))
+
     # Determine whether it is a ImageJ formatted TIFF file (New version)
     image_info = tifffile.TiffFile(filename)
     if len(image_info.pages) > 1:
         # print("Not a ImageJ formatted Tiff file.")
-        Stack = tifffile.imread(filename)
+        if header.MicroManagerBigTiff:
+            Stack = numpy.zeros([len(image_info.pages), header.ImageLength, header.ImageWidth], dtype=dtype)
+            page_index = 0
+            with tifffile.TiffFile(filename) as tif:
+                for page in tif.pages:
+                    Stack[page_index, :, :] = page.asarray()
+                    page_index = page_index + 1
+        else:
+            Stack = tifffile.imread(filename)
     else:
-        """
-        Determine the numpy data_type from the TIF header.BitsPerSample and header.SampleFormat
-        """
-        dtype = {
-                    1: 'uint',
-                    2: 'int',
-                    3: 'float',
-                    4: 'undefined',
-                }[header.SampleFormat] + ascii(header.BitsPerSample)
-        try:
-            dtype = getattr(numpy, dtype)
-        except AttributeError:
-            raise UserWarning("ReadTifStack does not support data format: {0}".format(dtype))
-
         """
         Allocate our numpy array, and load data into our array from disk, one image at a time.
         """
@@ -293,8 +301,9 @@ def get_header(filename):
         if header.images is None:
             header.images = len(image_info.pages)
         if header.images != len(image_info.pages):
-            header.images = len(image_info.pages);
-            warnings.warn("Image number get from tifffile.TiffFile is inconsistent with 'images=' in ImageDescription. It is part of a MicroManager tiff stack (>4GB).")
+            # header.images = len(image_info.pages)
+            header.MicroManagerBigTiff = True
+            warnings.warn("Image number get from tifffile.TiffFile is inconsistent with 'images=' in ImageDescription. It is part of a MicroManager big tiff (>4GB).")
     else:
         if header.images is None:
             header.images = images_estimated
@@ -324,7 +333,7 @@ def get_header(filename):
             header.slices = header.images
             header.slices = slices
         else:
-            warnings.warn("channels * slices * frames dose not match total image number. It is part of a MicroManager tiff stack (>4GB).")
+            raise UserWarning("channels * slices * frames dose not match total image number.")
 
     return header
 
@@ -1119,6 +1128,7 @@ class Simple_IFD:
         self.NumberCharsInMicroManagerMetadata = 0
         self.OffsetOfOMicroManagerMetadata = 0
         self.MicroManagerMetadata = None
+        self.MicroManagerBigTiff = False
 
         self.NextIFD = 0
         self.endian = endian
@@ -1575,6 +1585,7 @@ if __name__ == '__main__':
     # for i in range(500):
     #     data = numpy.random.randint(0, 65535, 1600 * 1920, dtype=numpy.uint16).reshape(1, 1600, 1920)
     #     tifffile.imwrite('temp_2.tif', data, append=True)
+
 
 
 
