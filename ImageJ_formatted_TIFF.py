@@ -11,6 +11,7 @@ import math
 import json
 import time
 import tifffile
+import warnings
 from pprint import pprint
 
 numpy_version = numpy.version.version.split('.')
@@ -292,10 +293,15 @@ def get_header(filename):
         if header.images is None:
             header.images = len(image_info.pages)
         if header.images != len(image_info.pages):
-            raise UserWarning("Image number get from tifffile.TiffFile is inconsistent with 'images=' in ImageDescription.")
+            header.images = len(image_info.pages);
+            warnings.warn("Image number get from tifffile.TiffFile is inconsistent with 'images=' in ImageDescription. It is part of a MicroManager tiff stack (>4GB).")
     else:
         if header.images is None:
             header.images = images_estimated
+
+    # Double check
+    if header.images != images_estimated:
+        warnings.warn("Image number calculated from filesize is inconsistent with 'images=' in ImageDescription.")
 
     # Check header.images == channels * slices * frames
     if header.channels is None:
@@ -318,7 +324,7 @@ def get_header(filename):
             header.slices = header.images
             header.slices = slices
         else:
-            raise UserWarning("channels * slices * frames dose not match total image number.")
+            warnings.warn("channels * slices * frames dose not match total image number. It is part of a MicroManager tiff stack (>4GB).")
 
     return header
 
@@ -629,8 +635,12 @@ def parse_ifd(File_object, header, ifd_offset, verbose):
             elif tag_id == "MicroManagerMetadata":
                 header.NumberCharsInMicroManagerMetadata = len(entries['MicroManagerMetadata'])
                 header.OffsetOfOMicroManagerMetadata = bytes_to_int(byte_array=entry[8:12], endian=header.endian)
-                header.MicroManagerMetadata = str(entries["MicroManagerMetadata"], encoding='utf-8', errors='ignore')
-                # header.MicroManagerMetadata = json.loads(header.MicroManagerMetadata)
+                MicroManagerMetadata_str = str(entries["MicroManagerMetadata"], encoding='utf-8', errors='ignore')
+
+                # Trim the strange char(s) at the end of this char array
+                end_index = MicroManagerMetadata_str.rfind("}")
+                MicroManagerMetadata_str = MicroManagerMetadata_str[0:end_index + 1]
+                header.MicroManagerMetadata = json.loads(MicroManagerMetadata_str)
         elif verbose:
             print("Simple_IFD class does not contain this Tiff tag: {0}".format(tag_id))
 
@@ -1322,202 +1332,202 @@ class Simple_IFD:
 
 
 if __name__ == '__main__':
-    # region Write a 8-bit 2D tiff file using default settings (resolution = 0.05 um, spacing = 0.1 um)
-    stack_in = numpy.random.randint(low=0, high=256, size=(512, 512), dtype='uint8')
-    numpy.arange(500 * 1920 * 1600, dtype=numpy.float32).reshape([500, 1600, 1920])
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='8_bit(default_settings).tif')
-    end_time = time.time()
-    print('Execution time of writing a 8-bit 2D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Read a 8-bit 2D tiff file
-    start_time = time.time()
-    stack_out = ReadTifStack(filename='8_bit(default_settings).tif')[0]
-    end_time = time.time()
-    print('Execution time of reading a 8-bit 2D tiff file: ', end_time - start_time)
-
-    if numpy.array_equal(stack_in, stack_out):
-        print("True")
-    # endregion
-
-    # region Write a 16-bit 2D tiff file using default settings (resolution = 0.05 um, spacing = 0.1 um)
-    stack_in = numpy.random.randint(low=0, high=65536, size=(512, 512), dtype='uint16')
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='16_bit(default_settings).tif')
-    end_time = time.time()
-    print('Execution time of writing a 16-bit 2D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Read a 16-bit 2D tiff file
-    start_time = time.time()
-    stack_out = ReadTifStack(filename='16_bit(default_settings).tif')[0]
-    end_time = time.time()
-    print('Execution time of reading a 16-bit 2D tiff file: ', end_time - start_time)
-
-    if numpy.array_equal(stack_in, stack_out):
-        print("True")
-    # endregion
-
-    # region Read a 16-bit 2D tiff file into 1D ndarray
-    start_time = time.time()
-    stack_out = ReadTifStack_1d(filename='16_bit(default_settings).tif')[0]
-    end_time = time.time()
-    print('Execution time of reading a 16-bit 2D tiff file into 1D ndarray: ', end_time - start_time)
-    print(stack_out.shape)
-    print(stack_out.dtype)
-    # endregion
-
-    # region Write a 32-bit 2D tiff file using default settings (resolution = 0.05 um, spacing = 0.1 um)
-    stack_in = numpy.random.rand(512, 512)
-    stack_in = stack_in.astype(dtype=numpy.dtype('float32'))
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='32_bit(default_settings).tif')
-    end_time = time.time()
-    print('Execution time of writing a 32-bit 2D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Read a 32-bit 2D tiff file
-    start_time = time.time()
-    stack_out = ReadTifStack(filename='32_bit(default_settings).tif')[0]
-    end_time = time.time()
-    print('Execution time of reading a 32-bit 2D tiff file: ', end_time - start_time)
-
-    if numpy.array_equal(stack_in, stack_out):
-        print("True")
-    # endregion
-
-    # region Write a 8-bit 3D tiff file using user settings (resolution = 0.046 um, spacing = 0.2 um)
-    stack_in = numpy.linspace(start=0, stop=256, num=(512 * 512), dtype='uint8')
-    stack_in = numpy.tile(stack_in, 100)
-    stack_in = stack_in.reshape([100, 512, 512])
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='8_bit_stack(user_settings).tif', resolution=0.046, spacing=0.2)
-    end_time = time.time()
-    print('Execution time of writing a 8-bit 3D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Write a 16-bit 3D tiff file using user settings (resolution = 0.046 um, spacing = 0.2 um)
-    stack_in = numpy.linspace(start=0, stop=65536, num=(1920 * 1280), dtype='uint16')
-    stack_in = numpy.tile(stack_in, 100)
-    stack_in = stack_in.reshape([100, 1280, 1920])
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='16_bit_stack(user_setttings).tif', resolution=0.046, spacing=0.2)
-    end_time = time.time()
-    print('Execution time of writing a 16-bit 3D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Read a 16-bit 3D tiff file and display resolution, spacing and unit
-    start_time = time.time()
-    stack_out, header = ReadTifStack(filename='16_bit_stack(user_setttings).tif')
-    end_time = time.time()
-    print('Execution time of reading a 16-bit 3D tiff file: ', end_time - start_time)
-
-    if numpy.array_equal(stack_in, stack_out):
-        print("True")
-
-    print("Resolution: ", header.resolution)
-    print("Spacing: ", header.spacing)
-    print("Unit: ", header.unit)
-    # endregion
-
-    # region Write a 16-bit 4D tiff file using user settings (resolution = 0.046 um, spacing = 0.2 um)
-    stack_in = numpy.linspace(start=0, stop=65536, num=(1920 * 1280), dtype='uint16')
-    stack_in = numpy.tile(stack_in, 100)
-    stack_in = stack_in.reshape([25, 4, 1280, 1920])
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='16_bit_4D_stack(user_setttings).tif', resolution=0.046, spacing=0.2,
-                  imformat='zc')
-    end_time = time.time()
-    print('Execution time of writing a 16-bit 4D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Read a 16-bit 4D tiff file and display its channels, slices and frames
-    start_time = time.time()
-    stack_out, header = ReadTifStack(filename='16_bit_4D_stack(user_setttings).tif')
-    end_time = time.time()
-    print('Execution time of reading a 16-bit 4D tiff file: ', end_time - start_time)
-
-    if numpy.array_equal(stack_in, stack_out):
-        print("True")
-
-    print("Channels: ", header.channels)
-    print("Slices: ", header.slices)
-    print("frames: ", header.frames)
-    # endregion
-
-    # region Write a 16-bit 5D tiff file using user settings and break the 4GB limit (resolution = 0.046 um, spacing = 0.2 um)
-    stack_in = numpy.linspace(start=0, stop=65536, num=(1920 * 1280), dtype='uint16')
-    stack_in = numpy.tile(stack_in, 2000)
-    stack_in = stack_in.reshape([5, 100, 4, 1280, 1920])
-    start_time = time.time()
-    WriteTifStack(numpy_array=stack_in, filename='16_bit_5D_stack(tzc).tif', resolution=0.046, spacing=0.2,
-                  imformat='tzc')
-    end_time = time.time()
-    print('Execution time of writing a 16-bit 5D tiff file: ', end_time - start_time)
-    # endregion
-
-    # region Read a 16-bit 5D tiff file
-    start_time = time.time()
-    stack_out, header = ReadTifStack(filename='16_bit_5D_stack(tzc).tif')
-    end_time = time.time()
-    print('Execution time of reading a 16-bit 5D tiff file: ', end_time - start_time)
-
-    if numpy.array_equal(stack_in, stack_out):
-        print("True")
-    # endregion
+    # # region Write a 8-bit 2D tiff file using default settings (resolution = 0.05 um, spacing = 0.1 um)
+    # stack_in = numpy.random.randint(low=0, high=256, size=(512, 512), dtype='uint8')
+    # numpy.arange(500 * 1920 * 1600, dtype=numpy.float32).reshape([500, 1600, 1920])
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='8_bit(default_settings).tif')
+    # end_time = time.time()
+    # print('Execution time of writing a 8-bit 2D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Read a 8-bit 2D tiff file
+    # start_time = time.time()
+    # stack_out = ReadTifStack(filename='8_bit(default_settings).tif')[0]
+    # end_time = time.time()
+    # print('Execution time of reading a 8-bit 2D tiff file: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_in, stack_out):
+    #     print("True")
+    # # endregion
+    #
+    # # region Write a 16-bit 2D tiff file using default settings (resolution = 0.05 um, spacing = 0.1 um)
+    # stack_in = numpy.random.randint(low=0, high=65536, size=(512, 512), dtype='uint16')
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='16_bit(default_settings).tif')
+    # end_time = time.time()
+    # print('Execution time of writing a 16-bit 2D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Read a 16-bit 2D tiff file
+    # start_time = time.time()
+    # stack_out = ReadTifStack(filename='16_bit(default_settings).tif')[0]
+    # end_time = time.time()
+    # print('Execution time of reading a 16-bit 2D tiff file: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_in, stack_out):
+    #     print("True")
+    # # endregion
+    #
+    # # region Read a 16-bit 2D tiff file into 1D ndarray
+    # start_time = time.time()
+    # stack_out = ReadTifStack_1d(filename='16_bit(default_settings).tif')[0]
+    # end_time = time.time()
+    # print('Execution time of reading a 16-bit 2D tiff file into 1D ndarray: ', end_time - start_time)
+    # print(stack_out.shape)
+    # print(stack_out.dtype)
+    # # endregion
+    #
+    # # region Write a 32-bit 2D tiff file using default settings (resolution = 0.05 um, spacing = 0.1 um)
+    # stack_in = numpy.random.rand(512, 512)
+    # stack_in = stack_in.astype(dtype=numpy.dtype('float32'))
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='32_bit(default_settings).tif')
+    # end_time = time.time()
+    # print('Execution time of writing a 32-bit 2D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Read a 32-bit 2D tiff file
+    # start_time = time.time()
+    # stack_out = ReadTifStack(filename='32_bit(default_settings).tif')[0]
+    # end_time = time.time()
+    # print('Execution time of reading a 32-bit 2D tiff file: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_in, stack_out):
+    #     print("True")
+    # # endregion
+    #
+    # # region Write a 8-bit 3D tiff file using user settings (resolution = 0.046 um, spacing = 0.2 um)
+    # stack_in = numpy.linspace(start=0, stop=256, num=(512 * 512), dtype='uint8')
+    # stack_in = numpy.tile(stack_in, 100)
+    # stack_in = stack_in.reshape([100, 512, 512])
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='8_bit_stack(user_settings).tif', resolution=0.046, spacing=0.2)
+    # end_time = time.time()
+    # print('Execution time of writing a 8-bit 3D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Write a 16-bit 3D tiff file using user settings (resolution = 0.046 um, spacing = 0.2 um)
+    # stack_in = numpy.linspace(start=0, stop=65536, num=(1920 * 1280), dtype='uint16')
+    # stack_in = numpy.tile(stack_in, 100)
+    # stack_in = stack_in.reshape([100, 1280, 1920])
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='16_bit_stack(user_setttings).tif', resolution=0.046, spacing=0.2)
+    # end_time = time.time()
+    # print('Execution time of writing a 16-bit 3D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Read a 16-bit 3D tiff file and display resolution, spacing and unit
+    # start_time = time.time()
+    # stack_out, header = ReadTifStack(filename='16_bit_stack(user_setttings).tif')
+    # end_time = time.time()
+    # print('Execution time of reading a 16-bit 3D tiff file: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_in, stack_out):
+    #     print("True")
+    #
+    # print("Resolution: ", header.resolution)
+    # print("Spacing: ", header.spacing)
+    # print("Unit: ", header.unit)
+    # # endregion
+    #
+    # # region Write a 16-bit 4D tiff file using user settings (resolution = 0.046 um, spacing = 0.2 um)
+    # stack_in = numpy.linspace(start=0, stop=65536, num=(1920 * 1280), dtype='uint16')
+    # stack_in = numpy.tile(stack_in, 100)
+    # stack_in = stack_in.reshape([25, 4, 1280, 1920])
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='16_bit_4D_stack(user_setttings).tif', resolution=0.046, spacing=0.2,
+    #               imformat='zc')
+    # end_time = time.time()
+    # print('Execution time of writing a 16-bit 4D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Read a 16-bit 4D tiff file and display its channels, slices and frames
+    # start_time = time.time()
+    # stack_out, header = ReadTifStack(filename='16_bit_4D_stack(user_setttings).tif')
+    # end_time = time.time()
+    # print('Execution time of reading a 16-bit 4D tiff file: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_in, stack_out):
+    #     print("True")
+    #
+    # print("Channels: ", header.channels)
+    # print("Slices: ", header.slices)
+    # print("frames: ", header.frames)
+    # # endregion
+    #
+    # # region Write a 16-bit 5D tiff file using user settings and break the 4GB limit (resolution = 0.046 um, spacing = 0.2 um)
+    # stack_in = numpy.linspace(start=0, stop=65536, num=(1920 * 1280), dtype='uint16')
+    # stack_in = numpy.tile(stack_in, 2000)
+    # stack_in = stack_in.reshape([5, 100, 4, 1280, 1920])
+    # start_time = time.time()
+    # WriteTifStack(numpy_array=stack_in, filename='16_bit_5D_stack(tzc).tif', resolution=0.046, spacing=0.2,
+    #               imformat='tzc')
+    # end_time = time.time()
+    # print('Execution time of writing a 16-bit 5D tiff file: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Read a 16-bit 5D tiff file
+    # start_time = time.time()
+    # stack_out, header = ReadTifStack(filename='16_bit_5D_stack(tzc).tif')
+    # end_time = time.time()
+    # print('Execution time of reading a 16-bit 5D tiff file: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_in, stack_out):
+    #     print("True")
+    # # endregion
 
     # region Get the header information about a 16-bit 5D tiff file without reading any image data
     start_time = time.time()
-    header = get_header(filename='16_bit_5D_stack(tzc).tif')
+    header = get_header(filename='Co-Local__1_MMStack_Default.ome.tif')
     end_time = time.time()
     print('Execution time of reading a header: ', end_time - start_time)
     pprint(vars(header), indent=2)
     # endregion
 
-    # region Compare with tifffile.imwrite
-    start_time = time.time()
-    tifffile.imwrite(
-        '16_bit_5D_stack(tzc)_tifffile.tif',
-        stack_in,
-        imagej=True,
-        resolution=(1. / 0.046, 1. / 0.046),
-        metadata={
-            'spacing': 0.2,
-            'unit': 'um',
-            'axes': 'TZCYX',
-        }
-    )
-    end_time = time.time()
-    print('Execution time of writing a 16-bit 5D ImageJ hyperstack formatted TIFF file using tifffile: ', end_time - start_time)
-    # endregion
-
-    # region Compare with tifffile.imread
-    start_time = time.time()
-    stack_out_tiff = tifffile.imread('16_bit_5D_stack(tzc).tif')
-    end_time = time.time()
-    print('Execution time of reading a 16-bit 5D tiff file using tifffile: ', end_time - start_time)
-
-    if numpy.array_equal(stack_out, stack_out_tiff):
-        print("True")
-    # endregion
-
-    # region Use tifffile.TiffFile to Read the volume and metadata from the Micro-Manager OME file
-    start_time = time.time()
-    with tifffile.TiffFile('Co-Local__1_MMStack_Default.ome.tif') as tif:
-        stack_out = tif.asarray()
-        axes = tif.series[0].axes
-        imagej_metadata = tif.imagej_metadata
-        ome_metadata = tif.ome_metadata
-        micromanager_metadata = tif.micromanager_metadata
-    end_time = time.time()
-    print('Execution time of reading the volume and metadata from the 16-bit 5D ImageJ hyperstack file using tifffile: ', end_time - start_time)
-    print(stack_out.shape)
-    print("Axes: ", axes)
-    pprint(imagej_metadata, indent=2)
-    pprint(ome_metadata, indent=2)
-    pprint(micromanager_metadata, indent=2)
-    # endregion
+    # # region Compare with tifffile.imwrite
+    # start_time = time.time()
+    # tifffile.imwrite(
+    #     '16_bit_5D_stack(tzc)_tifffile.tif',
+    #     stack_in,
+    #     imagej=True,
+    #     resolution=(1. / 0.046, 1. / 0.046),
+    #     metadata={
+    #         'spacing': 0.2,
+    #         'unit': 'um',
+    #         'axes': 'TZCYX',
+    #     }
+    # )
+    # end_time = time.time()
+    # print('Execution time of writing a 16-bit 5D ImageJ hyperstack formatted TIFF file using tifffile: ', end_time - start_time)
+    # # endregion
+    #
+    # # region Compare with tifffile.imread
+    # start_time = time.time()
+    # stack_out_tiff = tifffile.imread('16_bit_5D_stack(tzc).tif')
+    # end_time = time.time()
+    # print('Execution time of reading a 16-bit 5D tiff file using tifffile: ', end_time - start_time)
+    #
+    # if numpy.array_equal(stack_out, stack_out_tiff):
+    #     print("True")
+    # # endregion
+    #
+    # # region Use tifffile.TiffFile to Read the volume and metadata from the Micro-Manager OME file
+    # start_time = time.time()
+    # with tifffile.TiffFile('Co-Local__1_MMStack_Default.ome.tif') as tif:
+    #     stack_out = tif.asarray()
+    #     axes = tif.series[0].axes
+    #     imagej_metadata = tif.imagej_metadata
+    #     ome_metadata = tif.ome_metadata
+    #     micromanager_metadata = tif.micromanager_metadata
+    # end_time = time.time()
+    # print('Execution time of reading the volume and metadata from the 16-bit 5D ImageJ hyperstack file using tifffile: ', end_time - start_time)
+    # print(stack_out.shape)
+    # print("Axes: ", axes)
+    # pprint(imagej_metadata, indent=2)
+    # pprint(ome_metadata, indent=2)
+    # pprint(micromanager_metadata, indent=2)
+    # # endregion
 
     # # region Using "Append mode" to write a 16-bit 5D tiff file
     # stack_in = numpy.linspace(start=0, stop=65536, num=(1024 * 1024), dtype='uint16')
