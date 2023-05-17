@@ -256,7 +256,11 @@ classdef ImageJ_formatted_TIFF
 %             end
 %         end
         
-        function [Stack, Header] = ReadTifStack(Filename)
+        function [Stack, Header] = ReadTifStack(Filename, reshape_flag)
+            if nargin == 1
+                reshape_flag = 1;
+            end
+
             % Get tiff file header
             header = ImageJ_formatted_TIFF.get_header(Filename);
 
@@ -331,11 +335,13 @@ classdef ImageJ_formatted_TIFF
                 else
                     frames = header.frames;
                 end
-
-                % Reshape into final format
-                Stack = reshape(Stack, [header.ImageLength, header.ImageWidth, channels, slices, frames]);
-                % Remove unnecessary dimension(s)
-                Stack = squeeze(Stack);
+                
+                if reshape_flag
+                    % Reshape into final format
+                    Stack = reshape(Stack, [header.ImageLength, header.ImageWidth, channels, slices, frames]);
+                    % Remove unnecessary dimension(s)
+                    Stack = squeeze(Stack);
+                end
             end
 
             if nargout > 1
